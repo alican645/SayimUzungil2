@@ -1,7 +1,5 @@
 import SwiftUI
 
-import AVFoundation
-
 struct ContentView: View {
     @StateObject private var viewModel = InventoryCountViewModel()
 
@@ -30,6 +28,7 @@ struct ContentView: View {
 
 private struct ScanScreen: View {
     @ObservedObject var viewModel: InventoryCountViewModel
+    @State private var isInlineScannerVisible = false
 
     var body: some View {
         NavigationStack {
@@ -54,12 +53,6 @@ private struct ScanScreen: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Barkod Sayım")
         }
-        .sheet(isPresented: $viewModel.isScannerPresented) {
-            BarcodeScannerView { code in
-                viewModel.barcodeInput = code
-                Task { await viewModel.fetchProduct() }
-            }
-        }
     }
 
     private var depotSelectionCard: some View {
@@ -82,6 +75,28 @@ private struct ScanScreen: View {
 
     private var barcodeCard: some View {
         card(title: "Barkod") {
+            Button {
+                isInlineScannerVisible.toggle()
+            } label: {
+                Label(isInlineScannerVisible ? "Kamerayı Kapat" : "Kameradan Barkod Oku", systemImage: "camera.viewfinder")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            if isInlineScannerVisible {
+                BarcodeScannerView { code in
+                    viewModel.barcodeInput = code
+                    isInlineScannerVisible = false
+                    Task { await viewModel.fetchProduct() }
+                }
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.gray.opacity(0.25), lineWidth: 1)
+                }
+            }
+
             HStack {
                 TextField("Barkod girin", text: $viewModel.barcodeInput)
                     .textInputAutocapitalization(.characters)
@@ -94,14 +109,6 @@ private struct ScanScreen: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.barcodeInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-
-            Button {
-                viewModel.isScannerPresented = true
-            } label: {
-                Label("Kamerayı Aç", systemImage: "camera.viewfinder")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
         }
     }
 
@@ -212,7 +219,6 @@ final class InventoryCountViewModel: ObservableObject {
     @Published var groupedItems: [GroupedCountItem] = []
     @Published var errorMessage: String?
     @Published var isLoadingDepots = false
-    @Published var isScannerPresented = false
     @Published var isSending = false
     @Published var showAlert = false
     @Published var alertMessage = ""
@@ -281,7 +287,6 @@ final class InventoryCountViewModel: ObservableObject {
             currentProduct = response.data
             countInput = ""
             errorMessage = nil
-            isScannerPresented = false
         } catch {
             errorMessage = "Ürün sorgulanırken hata oluştu: \(error.localizedDescription)"
         }
