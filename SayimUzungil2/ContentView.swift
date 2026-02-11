@@ -1,4 +1,6 @@
 import SwiftUI
+import Combine
+
 
 struct ContentView: View {
     @StateObject private var viewModel = InventoryCountViewModel()
@@ -175,6 +177,7 @@ struct ContentView: View {
 
 @MainActor
 final class InventoryCountViewModel: ObservableObject {
+
     @Published var depots: [Depot] = []
     @Published var selectedDepotCode: String = ""
     @Published var barcodeInput: String = ""
@@ -189,13 +192,12 @@ final class InventoryCountViewModel: ObservableObject {
 
     private let baseURL = "http://192.168.10.2:82/SayimAktarmaApi"
 
+    // MARK: - Depo Yükleme
     func loadDepots() async {
         isLoadingDepots = true
         defer { isLoadingDepots = false }
 
-        guard let encoded = "\(baseURL)/Depo".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: encoded)
-        else {
+        guard let url = URL(string: "\(baseURL)/Depo") else {
             errorMessage = "Depo URL'i geçersiz."
             return
         }
@@ -203,30 +205,40 @@ final class InventoryCountViewModel: ObservableObject {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(DepotResponse.self, from: data)
+
             guard response.success else {
                 errorMessage = "Depo bilgileri alınamadı."
                 return
             }
+
             depots = response.data
+
             if selectedDepotCode.isEmpty {
                 selectedDepotCode = depots.first?.depoKodu ?? ""
             }
+
             errorMessage = nil
+
         } catch {
             errorMessage = "Depolar yüklenirken hata oluştu: \(error.localizedDescription)"
         }
     }
 
+    // MARK: - Ürün Sorgulama
     func fetchProduct() async {
         let barcode = barcodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
+
         guard !barcode.isEmpty else { return }
+
         guard !selectedDepotCode.isEmpty else {
             errorMessage = "Önce depo seçiniz."
             return
         }
 
         var components = URLComponents(string: baseURL)
-        components?.queryItems = [URLQueryItem(name: "barcode", value: barcode)]
+        components?.queryItems = [
+            URLQueryItem(name: "barcode", value: barcode)
+        ]
 
         guard let url = components?.url else {
             errorMessage = "Barkod URL'i geçersiz."
@@ -236,35 +248,47 @@ final class InventoryCountViewModel: ObservableObject {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(ProductResponse.self, from: data)
+
             guard response.success else {
                 errorMessage = "Ürün bulunamadı."
                 return
             }
+
             currentProduct = response.data
             countInput = ""
             errorMessage = nil
             isScannerPresented = false
+
         } catch {
             errorMessage = "Ürün sorgulanırken hata oluştu: \(error.localizedDescription)"
         }
     }
 
+    // MARK: - Listeye Ekle
     func addCurrentProductToList() {
+
         guard let product = currentProduct else {
             errorMessage = "Önce bir ürün sorgulayın."
             return
         }
+
         guard !selectedDepotCode.isEmpty else {
             errorMessage = "Depo seçimi zorunludur."
             return
         }
-        guard let count = Double(countInput.replacingOccurrences(of: ",", with: ".")), count > 0 else {
+
+        guard let count = Double(countInput.replacingOccurrences(of: ",", with: ".")),
+              count > 0 else {
             errorMessage = "Geçerli bir sayım adeti giriniz."
             return
         }
 
         countItems.append(
-            CountItem(product: product, selectedDepotCode: selectedDepotCode, count: count)
+            CountItem(
+                product: product,
+                selectedDepotCode: selectedDepotCode,
+                count: count
+            )
         )
 
         currentProduct = nil
@@ -273,18 +297,23 @@ final class InventoryCountViewModel: ObservableObject {
         errorMessage = nil
     }
 
+    // MARK: - Silme
     func removeItems(at offsets: IndexSet) {
         countItems.remove(atOffsets: offsets)
     }
 
+    // MARK: - Kaydet
     func saveAll() {
         guard !countItems.isEmpty else { return }
+
         let totalItems = countItems.count
         countItems.removeAll()
+
         saveAlertMessage = "\(totalItems) kalem sayım listesi kaydedildi (lokal)."
         showSaveAlert = true
     }
 }
+
 
 struct Depot: Decodable, Identifiable {
     let ind: Int
