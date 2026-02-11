@@ -160,6 +160,9 @@ private struct ScanScreen: View {
 
 private struct StockListScreen: View {
     @ObservedObject var viewModel: InventoryCountViewModel
+    @State private var isVegaModalPresented = false
+    @State private var selectedVegaDate = Date()
+    @State private var selectedVegaMonth = Calendar.current.component(.month, from: .now)
 
     var body: some View {
         NavigationStack {
@@ -187,7 +190,9 @@ private struct StockListScreen: View {
                 }
 
                 Button {
-                    Task { await viewModel.sendToVega() }
+                    selectedVegaDate = .now
+                    selectedVegaMonth = Calendar.current.component(.month, from: selectedVegaDate)
+                    isVegaModalPresented = true
                 } label: {
                     HStack {
                         if viewModel.isSending {
@@ -205,7 +210,49 @@ private struct StockListScreen: View {
                 .padding(.bottom, 12)
             }
             .navigationTitle("Stok Listesi")
+            .sheet(isPresented: $isVegaModalPresented) {
+                NavigationStack {
+                    Form {
+                        DatePicker(
+                            "Tarih",
+                            selection: $selectedVegaDate,
+                            displayedComponents: [.date]
+                        )
+
+                        Picker("Ay", selection: $selectedVegaMonth) {
+                            ForEach(1...12, id: \.self) { month in
+                                Text(monthName(for: month)).tag(month)
+                            }
+                        }
+                    }
+                    .navigationTitle("Vega Gönderim")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Vazgeç") {
+                                isVegaModalPresented = false
+                            }
+                        }
+
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Gönder") {
+                                isVegaModalPresented = false
+                                let year = Calendar.current.component(.year, from: selectedVegaDate)
+                                Task {
+                                    await viewModel.sendToVega(year: year, month: selectedVegaMonth)
+                                }
+                            }
+                            .disabled(viewModel.groupedItems.isEmpty || viewModel.isSending)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private func monthName(for month: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        return formatter.monthSymbols[month - 1].capitalized
     }
 }
 
@@ -343,12 +390,20 @@ final class InventoryCountViewModel: ObservableObject {
         persistLocalItems()
     }
 
-    func sendToVega() async {
+    func sendToVega(year: Int, month: Int) async {
         guard !groupedItems.isEmpty else { return }
         guard let url = URL(string: "\(baseURL)/SendToVega") else {
             errorMessage = "SendToVega URL'i geçersiz."
             return
         }
+
+        groupedItems = groupedItems.map { item in
+            var updated = item
+            updated.yil = year
+            updated.ay = month
+            return updated
+        }
+        persistLocalItems()
 
         isSending = true
         defer { isSending = false }
@@ -449,8 +504,8 @@ struct GroupedCountItem: Codable, Identifiable {
     let depoAdi: String
     let aciklama: String
     let sayimTipi: String
-    let yil: Int
-    let ay: Int
+    var yil: Int
+    var ay: Int
 
     init(
         id: UUID = UUID(),
