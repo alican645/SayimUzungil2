@@ -1,4 +1,5 @@
 import SwiftUI
+
 import AVFoundation
 
 struct ContentView: View {
@@ -159,6 +160,7 @@ private struct StockListScreen: View {
                 if viewModel.groupedItems.isEmpty {
                     ContentUnavailableView("Kayıt Yok", systemImage: "tray", description: Text("Lokale eklenen sayım kalemleri burada görüntülenir."))
                         .frame(maxHeight: .infinity)
+
                 } else {
                     List {
                         ForEach(viewModel.groupedItems) { item in
