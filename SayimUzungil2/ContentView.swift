@@ -1,5 +1,5 @@
 import SwiftUI
-import Combine
+
 import AVFoundation
 
 struct ContentView: View {
@@ -158,19 +158,9 @@ private struct StockListScreen: View {
         NavigationStack {
             VStack(spacing: 12) {
                 if viewModel.groupedItems.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "tray")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                        Text("Kayıt Yok")
-                            .font(.headline)
-                        Text("Lokale eklenen sayım kalemleri burada görüntülenir.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
+                    ContentUnavailableView("Kayıt Yok", systemImage: "tray", description: Text("Lokale eklenen sayım kalemleri burada görüntülenir."))
+                        .frame(maxHeight: .infinity)
+
                 } else {
                     List {
                         ForEach(viewModel.groupedItems) { item in
@@ -480,7 +470,6 @@ struct GroupedCountItem: Codable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id
         case stokKodu
         case stokAdi = "stokAdı"
         case miktar
